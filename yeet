@@ -1,54 +1,5 @@
 #!/bin/bash
 
-# ===========================================
-# Kirby CMS Deploy Script (via git-ftp)
-# ===========================================
-#
-# Interactive deploy script that lets you
-# choose an action (push, init, status) and
-# target environment. Environments are
-# auto-detected from DEPLOY_* vars in .env.
-#
-# Setup:
-#   1. Place this file in your project root
-#   2. Make it executable: chmod +x deploy.sh
-#   3. Add .env to .gitignore
-#   4. Create a .git-ftp-ignore with:
-#        content/
-#        media/
-#        .env
-#        .deploy-status
-#   5. Run: ./deploy.sh
-#
-# Finding your HOST path:
-#   1. Connect via FTP to see your root directory:
-#        curl --user ftp-user ftp://yourserver.com/
-#   2. If you see content/, site/, kirby/ etc.
-#      you're already in the project root:
-#        HOST=ftp://yourserver.com
-#   3. If Kirby is in a subfolder (e.g. public_html/),
-#      add it to the path:
-#        HOST=ftp://yourserver.com/public_html
-#   4. You can browse deeper with:
-#        curl --user ftp-user ftp://yourserver.com/public_html/
-#
-# .env configuration (add as many environments as you need):
-#   DEPLOY_DEV_HOST=ftp://dev.yourserver.com
-#   DEPLOY_DEV_USER=ftp-dev-user
-#   DEPLOY_DEV_PASS=your-dev-password
-#
-#   DEPLOY_PROD_HOST=ftp://yourserver.com
-#   DEPLOY_PROD_USER=ftp-prod-user
-#   DEPLOY_PROD_PASS=your-prod-password
-#
-#   DEPLOY_STAGING_HOST=ftp://staging.yourserver.com
-#   DEPLOY_STAGING_USER=ftp-staging-user
-#   DEPLOY_STAGING_PASS=your-staging-password
-#
-# Requires: git-ftp (brew install git-ftp)
-# More info: https://github.com/git-ftp/git-ftp
-# ===========================================
-
 # === Config ===
 GIT_REMOTE="github"
 STATUS_FILE=".deploy-status"
