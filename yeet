@@ -37,9 +37,11 @@ refresh_status() {
     local h_var="DEPLOY_${env_name}_HOST"
     local u_var="DEPLOY_${env_name}_USER"
     local p_var="DEPLOY_${env_name}_PASS"
+    local url_var="DEPLOY_${env_name}_URL"
     local h="${!h_var}"
     local u="${!u_var}"
     local p="${!p_var}"
+    local url="${!url_var}"
 
     if [ -z "$h" ] || [ -z "$u" ] || [ -z "$p" ]; then
       output+="$(printf '%-8s %s' "$env_name" "(missing credentials in .env)")\n"
@@ -73,8 +75,11 @@ refresh_status() {
       message="${message:0:37}..."
     fi
 
-    output+="$(printf '%-8s %s  %s  %-42s (%s behind HEAD)' \
-      "$env_name" "$short_hash" "$date_str" "\"$message\"" "$behind")\n"
+    local line
+    line="$(printf '%-8s %s  %s  %-42s (%s behind HEAD)' \
+      "$env_name" "$short_hash" "$date_str" "\"$message\"" "$behind")"
+    [ -n "$url" ] && line+="  → $url"
+    output+="$line\n"
   done
 
   if [ "$has_envs" = false ]; then
@@ -128,7 +133,7 @@ esac
 # === Detect environments from DEPLOY_* vars ===
 ENVS=()
 for var in $(compgen -v); do
-  if [[ $var =~ ^DEPLOY_(.+)_(HOST|USER|PASS)$ ]]; then
+  if [[ $var =~ ^DEPLOY_(.+)_(HOST|USER|PASS|URL)$ ]]; then
     ENV_NAME="${BASH_REMATCH[1]}"
     if [[ ! " ${ENVS[@]} " =~ " ${ENV_NAME} " ]]; then
       ENVS+=("$ENV_NAME")
@@ -152,7 +157,13 @@ if [ ${#ENVS[@]} -eq 0 ]; then
   read -p "  Environment name (e.g. DEV, PROD): " LABEL
 else
   for i in "${!ENVS[@]}"; do
-    printf "  ${CYAN}%d)${NC} %s\n" "$((i+1))" "${ENVS[$i]}"
+    env_url_var="DEPLOY_${ENVS[$i]}_URL"
+    env_url="${!env_url_var}"
+    if [ -n "$env_url" ]; then
+      printf "  ${CYAN}%d)${NC} %s  ${DIM}%s${NC}\n" "$((i+1))" "${ENVS[$i]}" "$env_url"
+    else
+      printf "  ${CYAN}%d)${NC} %s\n" "$((i+1))" "${ENVS[$i]}"
+    fi
   done
   echo
   read -p "  Select environment [1-${#ENVS[@]}]: " ENV
@@ -170,9 +181,12 @@ HOST_VAR="DEPLOY_${LABEL}_HOST"
 USER_VAR="DEPLOY_${LABEL}_USER"
 PASS_VAR="DEPLOY_${LABEL}_PASS"
 
+URL_VAR="DEPLOY_${LABEL}_URL"
+
 HOST="${!HOST_VAR}"
 USER="${!USER_VAR}"
 PASS="${!PASS_VAR}"
+URL="${!URL_VAR}"
 
 MISSING=""
 
@@ -191,6 +205,7 @@ logo
 echo -e "  Action: ${BOLD}git ftp $CMD${NC}"
 echo -e "  Target: ${BOLD}$LABEL${NC}"
 echo -e "  Host:   ${CYAN}$HOST${NC}"
+[ -n "$URL" ] && echo -e "  URL:    ${CYAN}$URL${NC}"
 echo -e "  User:   ${CYAN}$USER${NC}"
 echo
 
@@ -217,5 +232,6 @@ FTP_EXIT=$?
 if [ $FTP_EXIT -eq 0 ]; then
   echo
   echo -e "  ${GREEN}✓ Deployed to ${BOLD}${LABEL}${NC}"
+  [ -n "$URL" ] && echo -e "  ${DIM}→ ${URL}${NC}"
   refresh_status
 fi

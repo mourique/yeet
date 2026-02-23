@@ -55,20 +55,23 @@ This tells git-ftp to upload these directories whenever `composer.lock` changes.
 
 ## .env configuration
 
-Add as many environments as you need:
+Add as many environments as you need. `DEPLOY_*_URL` is optional — it stores the public URL where the environment is accessible and is shown during deploy and in `.deploy-status`.
 
 ```env
 DEPLOY_DEV_HOST=ftp://dev.yourserver.com
 DEPLOY_DEV_USER=ftp-dev-user
 DEPLOY_DEV_PASS=your-dev-password
+DEPLOY_DEV_URL=https://dev.yourserver.com
 
 DEPLOY_PROD_HOST=ftp://yourserver.com
 DEPLOY_PROD_USER=ftp-prod-user
 DEPLOY_PROD_PASS=your-prod-password
+DEPLOY_PROD_URL=https://yourserver.com
 
 DEPLOY_STAGING_HOST=ftp://staging.yourserver.com
 DEPLOY_STAGING_USER=ftp-staging-user
 DEPLOY_STAGING_PASS=your-staging-password
+DEPLOY_STAGING_URL=https://staging.yourserver.com
 ```
 
 ## Requirements
