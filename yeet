@@ -1,0 +1,270 @@
+#!/bin/bash
+
+# ===========================================
+# Kirby CMS Deploy Script (via git-ftp)
+# ===========================================
+#
+# Interactive deploy script that lets you
+# choose an action (push, init, status) and
+# target environment. Environments are
+# auto-detected from DEPLOY_* vars in .env.
+#
+# Setup:
+#   1. Place this file in your project root
+#   2. Make it executable: chmod +x deploy.sh
+#   3. Add .env to .gitignore
+#   4. Create a .git-ftp-ignore with:
+#        content/
+#        media/
+#        .env
+#        .deploy-status
+#   5. Run: ./deploy.sh
+#
+# Finding your HOST path:
+#   1. Connect via FTP to see your root directory:
+#        curl --user ftp-user ftp://yourserver.com/
+#   2. If you see content/, site/, kirby/ etc.
+#      you're already in the project root:
+#        HOST=ftp://yourserver.com
+#   3. If Kirby is in a subfolder (e.g. public_html/),
+#      add it to the path:
+#        HOST=ftp://yourserver.com/public_html
+#   4. You can browse deeper with:
+#        curl --user ftp-user ftp://yourserver.com/public_html/
+#
+# .env configuration (add as many environments as you need):
+#   DEPLOY_DEV_HOST=ftp://dev.yourserver.com
+#   DEPLOY_DEV_USER=ftp-dev-user
+#   DEPLOY_DEV_PASS=your-dev-password
+#
+#   DEPLOY_PROD_HOST=ftp://yourserver.com
+#   DEPLOY_PROD_USER=ftp-prod-user
+#   DEPLOY_PROD_PASS=your-prod-password
+#
+#   DEPLOY_STAGING_HOST=ftp://staging.yourserver.com
+#   DEPLOY_STAGING_USER=ftp-staging-user
+#   DEPLOY_STAGING_PASS=your-staging-password
+#
+# Requires: git-ftp (brew install git-ftp)
+# More info: https://github.com/git-ftp/git-ftp
+# ===========================================
+
+# === Config ===
+GIT_REMOTE="github"
+STATUS_FILE=".deploy-status"
+
+# === Colors ===
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+# === Logo ===
+logo() {
+  echo -e "${DIM}"
+  echo '                                  '
+  echo '    ▄▄                       ██   '
+  echo '     ▀█▄  ██ ██ ▄█▀█▄ ▄█▀█▄ ▀██▀▀ '
+  echo '▀▀▀▀▀ ▄█▀ ██▄██ ██▄█▀ ██▄█▀  ██   '
+  echo '    ▄█▀    ▀██▀ ▀█▄▄▄ ▀█▄▄▄  ██   '
+  echo '            ██                    '
+  echo '          ▀▀▀                     '
+  echo -e "${NC}"
+}
+
+# === Refresh deploy status for all environments ===
+refresh_status() {
+  local timestamp
+  timestamp=$(date "+%Y-%m-%d %H:%M")
+  local output="Deploy Status (updated ${timestamp})\n\n"
+  local has_envs=false
+
+  for env_name in "${ENVS[@]}"; do
+    has_envs=true
+    local h_var="DEPLOY_${env_name}_HOST"
+    local u_var="DEPLOY_${env_name}_USER"
+    local p_var="DEPLOY_${env_name}_PASS"
+    local h="${!h_var}"
+    local u="${!u_var}"
+    local p="${!p_var}"
+
+    if [ -z "$h" ] || [ -z "$u" ] || [ -z "$p" ]; then
+      output+="$(printf '%-8s %s' "$env_name" "(missing credentials in .env)")\n"
+      continue
+    fi
+
+    # Fetch deployed SHA from .git-ftp.log on the server
+    local log_url="${h%/}/.git-ftp.log"
+    local sha
+    sha=$(curl -s --user "${u}:${p}" "$log_url" 2>/dev/null)
+
+    if [ $? -ne 0 ] || [ -z "$sha" ]; then
+      output+="$(printf '%-8s %s' "$env_name" "(unreachable or not deployed)")\n"
+      continue
+    fi
+
+    sha=$(echo "$sha" | tr -d '[:space:]')
+
+    if ! git cat-file -t "$sha" &>/dev/null; then
+      output+="$(printf '%-8s %s' "$env_name" "(unknown commit ${sha:0:7})")\n"
+      continue
+    fi
+
+    local short_hash date_str message behind
+    short_hash=$(git log --format="%h" -1 "$sha")
+    date_str=$(git log --format="%ai" -1 "$sha" | cut -d' ' -f1)
+    message=$(git log --format="%s" -1 "$sha")
+    behind=$(git rev-list --count "$sha"..HEAD)
+
+    if [ ${#message} -gt 40 ]; then
+      message="${message:0:37}..."
+    fi
+
+    output+="$(printf '%-8s %s  %s  %-42s (%s behind HEAD)' \
+      "$env_name" "$short_hash" "$date_str" "\"$message\"" "$behind")\n"
+  done
+
+  if [ "$has_envs" = false ]; then
+    output+="No environments found in .env\n"
+  fi
+
+  echo -e "$output" > "$STATUS_FILE"
+
+  echo
+  echo -e "  ${DIM}─────────────────────────────────────────────${NC}"
+  echo -e "$output" | while IFS= read -r line; do
+    [ -n "$line" ] && echo -e "  $line"
+  done
+  echo -e "  ${DIM}─────────────────────────────────────────────${NC}"
+  echo -e "  ${DIM}Written to ${STATUS_FILE}${NC}"
+}
+
+# === Preflight ===
+if ! command -v git-ftp &> /dev/null; then
+  echo -e "  ${RED}✗ git-ftp is not installed.${NC}"
+  echo -e "  Install via: ${BOLD}brew install git-ftp${NC}"
+  exit 1
+fi
+
+# === Load .env if present ===
+if [ -f .env ]; then
+  source .env
+fi
+
+# === Select action ===
+clear
+logo
+echo -e "  ${CYAN}1)${NC} Push  ${DIM}(incremental)${NC}"
+echo -e "  ${CYAN}2)${NC} Init  ${DIM}(first-time)${NC}"
+echo -e "  ${CYAN}3)${NC} Status  ${DIM}(all environments)${NC}"
+echo -e "  ${CYAN}q)${NC} Quit"
+echo
+read -p "  Select action [1/2/3/q]: " ACTION
+
+case $ACTION in
+  1) CMD="push" ;;
+  2) CMD="init" ;;
+  3) CMD="status" ;;
+  q|Q) exit 0 ;;
+  *)
+    echo -e "  ${RED}✗ Invalid selection. Aborting.${NC}"
+    exit 1
+    ;;
+esac
+
+# === Detect environments from DEPLOY_* vars ===
+ENVS=()
+for var in $(compgen -v); do
+  if [[ $var =~ ^DEPLOY_(.+)_(HOST|USER|PASS)$ ]]; then
+    ENV_NAME="${BASH_REMATCH[1]}"
+    if [[ ! " ${ENVS[@]} " =~ " ${ENV_NAME} " ]]; then
+      ENVS+=("$ENV_NAME")
+    fi
+  fi
+done
+
+# === Status: query all environments and exit ===
+if [ "$CMD" = "status" ]; then
+  refresh_status
+  exit 0
+fi
+
+# === Select environment ===
+clear
+logo
+if [ ${#ENVS[@]} -eq 0 ]; then
+  echo -e "  ${DIM}No environments found in .env${NC}"
+  echo -e "  ${DIM}You will be prompted for all values.${NC}"
+  echo
+  read -p "  Environment name (e.g. DEV, PROD): " LABEL
+else
+  for i in "${!ENVS[@]}"; do
+    printf "  ${CYAN}%d)${NC} %s\n" "$((i+1))" "${ENVS[$i]}"
+  done
+  echo
+  read -p "  Select environment [1-${#ENVS[@]}]: " ENV
+
+  if ! [[ "$ENV" =~ ^[0-9]+$ ]] || [ "$ENV" -lt 1 ] || [ "$ENV" -gt ${#ENVS[@]} ]; then
+    echo -e "  ${RED}✗ Invalid selection. Aborting.${NC}"
+    exit 1
+  fi
+
+  LABEL="${ENVS[$((ENV-1))]}"
+fi
+
+# === Resolve config from .env or prompt ===
+HOST_VAR="DEPLOY_${LABEL}_HOST"
+USER_VAR="DEPLOY_${LABEL}_USER"
+PASS_VAR="DEPLOY_${LABEL}_PASS"
+
+HOST="${!HOST_VAR}"
+USER="${!USER_VAR}"
+PASS="${!PASS_VAR}"
+
+MISSING=""
+
+if [ -z "$HOST" ]; then
+  MISSING+=" ${HOST_VAR}"
+  read -p "  ${HOST_VAR}: " HOST
+fi
+
+if [ -z "$USER" ]; then
+  MISSING+=" ${USER_VAR}"
+  read -p "  ${USER_VAR}: " USER
+fi
+
+clear
+logo
+echo -e "  Action: ${BOLD}git ftp $CMD${NC}"
+echo -e "  Target: ${BOLD}$LABEL${NC}"
+echo -e "  Host:   ${CYAN}$HOST${NC}"
+echo -e "  User:   ${CYAN}$USER${NC}"
+echo
+
+if [ -z "$PASS" ]; then
+  MISSING+=" ${PASS_VAR}"
+  read -s -p "  ${PASS_VAR}: " PASS
+  echo
+  echo
+fi
+
+if [ -n "$MISSING" ]; then
+  echo -e "  ${DIM}Tip: Add$MISSING to .env to skip prompts.${NC}"
+  echo
+fi
+
+git ftp "$CMD" \
+  --user "$USER" \
+  --passwd "$PASS" \
+  --verbose \
+  "$HOST"
+FTP_EXIT=$?
+
+# === Refresh deploy status after successful deploy ===
+if [ $FTP_EXIT -eq 0 ]; then
+  echo
+  echo -e "  ${GREEN}✓ Deployed to ${BOLD}${LABEL}${NC}"
+  refresh_status
+fi
