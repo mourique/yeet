@@ -74,6 +74,16 @@ DEPLOY_STAGING_PASS=your-staging-password
 DEPLOY_STAGING_URL=https://staging.yourserver.com
 ```
 
+## Completion Sound
+
+After a successful deploy, yeet plays a sound notification. Place your own sound file at:
+
+```
+~/.config/yeet/sound.mp3
+```
+
+Any format supported by `afplay` works (.mp3, .wav, .aiff, .m4a). If no sound file is found, yeet falls back to the terminal bell.
+
 ## Requirements
 
 - [git-ftp](https://github.com/git-ftp/git-ftp) (`brew install git-ftp`)
