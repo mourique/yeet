@@ -233,5 +233,14 @@ if [ $FTP_EXIT -eq 0 ]; then
   echo
   echo -e "  ${GREEN}✓ Deployed to ${BOLD}${LABEL}${NC}"
   [ -n "$URL" ] && echo -e "  ${DIM}→ ${URL}${NC}"
+
+  # Play completion sound
+  SOUND_FILE="$HOME/.config/yeet/sound.mp3"
+  if [ -f "$SOUND_FILE" ]; then
+    afplay "$SOUND_FILE" &
+  else
+    printf '\a'
+  fi
+
   refresh_status
 fi
