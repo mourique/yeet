@@ -97,6 +97,58 @@ refresh_status() {
   echo -e "  ${DIM}Written to ${STATUS_FILE}${NC}"
 }
 
+# === Help ===
+show_help() {
+  echo
+  echo -e "${BOLD}yeet${NC} — FTP deploy script using git-ftp"
+  echo
+  echo -e "${BOLD}USAGE${NC}"
+  echo "  yeet              Interactive deploy (push, init, or status)"
+  echo "  yeet -h, --help   Show this help"
+  echo
+  echo -e "${BOLD}SETUP${NC}"
+  echo "  1. Install git-ftp: brew install git-ftp"
+  echo "  2. Create a .env in your project root with deploy credentials"
+  echo "  3. Optionally create .git-ftp-ignore and .git-ftp-include"
+  echo "  4. Run yeet from your project directory"
+  echo
+  echo -e "${BOLD}ACTIONS${NC}"
+  echo "  Push     Incremental deploy — only changed files since last deploy"
+  echo "  Init     First-time deploy — uploads everything and sets the baseline"
+  echo "  Status   Show deployed commit info for all environments"
+  echo
+  echo -e "${BOLD}.ENV CONFIGURATION${NC}"
+  echo "  Define one or more environments using DEPLOY_<NAME>_* variables:"
+  echo
+  echo "    DEPLOY_DEV_HOST=ftp://dev.example.com"
+  echo "    DEPLOY_DEV_USER=ftp-user"
+  echo "    DEPLOY_DEV_PASS=secret"
+  echo "    DEPLOY_DEV_URL=https://dev.example.com    (optional, shown in status)"
+  echo
+  echo "  Repeat with PROD, STAGING, etc. for additional environments."
+  echo
+  echo -e "${BOLD}BRANCH AWARENESS${NC}"
+  echo "  Warns when deploying from a branch other than main."
+  echo "  Override with DEPLOY_BRANCH=develop in .env."
+  echo
+  echo -e "${BOLD}COMPLETION SOUND${NC}"
+  echo "  Place a sound file at ~/.config/yeet/sound.mp3"
+  echo "  Supports any format afplay handles (.mp3, .wav, .aiff, .m4a)."
+  echo "  Falls back to terminal bell if no file is found."
+  echo
+  echo -e "${BOLD}FILES${NC}"
+  echo "  .env              Deploy credentials (required)"
+  echo "  .git-ftp-ignore   Files/dirs to exclude from FTP deploy"
+  echo "  .git-ftp-include  Force-upload git-ignored dirs (e.g. vendor/)"
+  echo "  .deploy-status    Written by yeet after deploy with current status"
+  echo
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  show_help
+  exit 0
+fi
+
 # === Preflight ===
 if ! command -v git-ftp &> /dev/null; then
   echo -e "  ${RED}✗ git-ftp is not installed.${NC}"
