@@ -74,6 +74,16 @@ DEPLOY_STAGING_PASS=your-staging-password
 DEPLOY_STAGING_URL=https://staging.yourserver.com
 ```
 
+## Branch Awareness
+
+By default, yeet warns you when deploying from a branch other than `main`. You'll see a confirmation prompt before proceeding.
+
+To change the expected branch, add to your `.env`:
+
+```env
+DEPLOY_BRANCH=develop
+```
+
 ## Completion Sound
 
 After a successful deploy, yeet plays a sound notification. Place your own sound file at:
