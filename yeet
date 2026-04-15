@@ -109,6 +109,9 @@ if [ -f .env ]; then
   source .env
 fi
 
+# === Deploy branch ===
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
+
 # === Select action ===
 clear
 logo
@@ -218,6 +221,18 @@ fi
 
 if [ -n "$MISSING" ]; then
   echo -e "  ${DIM}Tip: Add$MISSING to .env to skip prompts.${NC}"
+  echo
+fi
+
+# === Branch check ===
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "$DEPLOY_BRANCH" ]; then
+  echo -e "  ${RED}⚠ You're on '${CURRENT_BRANCH}', not '${DEPLOY_BRANCH}'.${NC}"
+  read -p "  Deploy anyway? [y/N]: " CONFIRM_BRANCH
+  if [[ ! "$CONFIRM_BRANCH" =~ ^[Yy]$ ]]; then
+    echo -e "  ${DIM}Aborted.${NC}"
+    exit 0
+  fi
   echo
 fi
 
