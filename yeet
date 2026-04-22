@@ -25,6 +25,45 @@ logo() {
   echo -e "${NC}"
 }
 
+# === Write deploy metadata ===
+write_deploy_json() {
+  local commit_full commit_short commit_msg branch env_label ts tz timestamp
+
+  commit_full=$(git log --format="%H" -1)
+  commit_short=$(git log --format="%h" -1)
+  commit_msg=$(git log --format="%s" -1)
+  branch=$(git rev-parse --abbrev-ref HEAD)
+  env_label="$1"
+
+  # ISO 8601 timestamp with timezone colon (macOS compatible)
+  ts=$(date "+%Y-%m-%dT%H:%M:%S%z")
+  tz="${ts: -5}"
+  timestamp="${ts:0:${#ts}-5}${tz:0:3}:${tz:3}"
+
+  # Escape JSON-unsafe characters in commit message
+  commit_msg="${commit_msg//\\/\\\\}"
+  commit_msg="${commit_msg//\"/\\\"}"
+
+  cat > .deploy.json <<EOF
+{
+  "commit": "${commit_short}",
+  "commitFull": "${commit_full}",
+  "message": "${commit_msg}",
+  "branch": "${branch}",
+  "environment": "${env_label}",
+  "timestamp": "${timestamp}"
+}
+EOF
+}
+
+# === Upload .deploy.json to remote ===
+upload_deploy_json() {
+  local host="$1" user="$2" pass="$3"
+  local target="${host%/}/.deploy.json"
+
+  curl -s -T .deploy.json --user "${user}:${pass}" "$target" 2>/dev/null
+}
+
 # === Refresh deploy status for all environments ===
 refresh_status() {
   local timestamp
@@ -141,6 +180,7 @@ show_help() {
   echo "  .git-ftp-ignore   Files/dirs to exclude from FTP deploy"
   echo "  .git-ftp-include  Force-upload git-ignored dirs (e.g. vendor/)"
   echo "  .deploy-status    Written by yeet after deploy with current status"
+  echo "  .deploy.json      Deploy metadata (generated, uploaded to remote)"
   echo
 }
 
@@ -300,6 +340,14 @@ if [ $FTP_EXIT -eq 0 ]; then
   echo
   echo -e "  ${GREEN}✓ Deployed to ${BOLD}${LABEL}${NC}"
   [ -n "$URL" ] && echo -e "  ${DIM}→ ${URL}${NC}"
+
+  # Write and upload deploy metadata
+  write_deploy_json "$LABEL"
+  if upload_deploy_json "$HOST" "$USER" "$PASS"; then
+    echo -e "  ${DIM}→ .deploy.json uploaded${NC}"
+  else
+    echo -e "  ${DIM}⚠ .deploy.json upload failed (non-critical)${NC}"
+  fi
 
   # Play completion sound
   SOUND_FILE="$HOME/.config/yeet/sound.mp3"
